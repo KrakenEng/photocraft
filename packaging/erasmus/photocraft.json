@@ -78,7 +78,7 @@
   "minHostVersion": "0.3.0",
 
   "id": "photocraft",
-  "version": "0.8.2",
+  "version": "0.9.1",
   "label": "PhotoCraft",
   "vendor": "Learning Machines LLC",
   "summary": "Layered image editing with real PSD files, in a native app written entirely in Rust.",
