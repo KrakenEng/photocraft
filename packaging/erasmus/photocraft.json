@@ -94,7 +94,8 @@
     "artifacts": {},
     "verifyFiles": ["photocraft.exe", "photocraft-cli.exe", "portable.txt"],
     "executables": ["photocraft.exe", "photocraft-cli.exe"],
-    "keep": [{ "path": "PhotoCraftData" }]
+    "keep": [{ "path": "PhotoCraftData" }],
+    "approxInstalledBytes": { "win32-x64": 215455333 }
   },
 
   "exec": {
