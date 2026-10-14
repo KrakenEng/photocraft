@@ -1,7 +1,7 @@
 # Hosting PhotoCraft inside Erasmus
 
-> **Status:** the bridge is implemented and verified against a real launch; not published ·
-> **Last updated:** 2026-10-13 · **Target:** Erasmus host 0.3.47
+> **Status:** published — `photocraft 0.9.1` is listed in the private marketplace ·
+> **Last updated:** 2026-10-14 · **Target:** Erasmus host 0.3.47
 
 Erasmus is an application harness: it installs a program, launches it itself, allocates the port
 its control bridge listens on, hands it a handshake file, and puts the program's real OS window
@@ -374,7 +374,37 @@ is built — step 10) and `PHOTOCRAFT_HOSTED` via `exec.env` (step 8a).
 | 8 | The transport onto the UI thread, the accept loop, and both front ends sharing one control channel | `apps/photocraft/src/{erasmus,control_server,main}.rs` | done |
 | 9 | The manifest, validated by running the host's own zod schema over it | `packaging/erasmus/photocraft.json` | done |
 | 8a | A `PHOTOCRAFT_HOSTED` flag and the `exec.env` that sets it, once something reads it — a modal "save changes?" on close is the first candidate | `apps/photocraft/src/main.rs`, the manifest | open |
-| 10 | Publish: build the portable zip, upload the release asset, copy the manifest, add the `packages.txt` line with its sha256, and fill `install.approxInstalledBytes` from the built zip | `../erasmus-packages` | open |
+| 10 | Publish: the portable zip, the release asset, the manifest copy, the `packages.txt` line and `approxInstalledBytes` | `../erasmus-packages` | done |
+
+### What was published, and on what base
+
+`photocraft 0.9.1`, release tag `photocraft-v0.9.1` on `KrakenIntegratedSystems/erasmus-packages`,
+asset `photocraft-0.9.1-windows-x64-portable.zip`
+(sha256 `b0c00efcf6e7777155ae5fbcf66f8a08f363c336c07a489e45b480b2fa2619db`, 110,823,082 bytes).
+GitHub's own digest for the uploaded asset was cross-checked against the hash written into
+`packages.txt` — that hash is the marketplace's whole integrity guarantee, so measuring it twice
+from two sources is worth the one extra call.
+
+**It is a 0.9.1 because it had to be.** The bridge work was developed on 0.8.2 while upstream moved
+498 commits ahead to 0.9.0, which was released the same day — and no published release contains the
+bridge. Publishing as 0.8.2 or 0.9.0 would have put two different binaries behind one version
+number. So the work was rebased onto `upstream/main` (every anchor it depends on survived; no
+conflicts) and the workspace version set to 0.9.1.
+
+**Known differences from an official release.** The binaries are **unsigned** — the Azure signing
+secrets are a CI input and are not available locally, so Windows SmartScreen will warn on first
+run. The marketplace's integrity guarantee does not depend on that signature: it is the sha256 in
+`packages.txt`, which a person wrote and `git log` records, and which Erasmus deliberately never
+takes from the same response that served the download. Signing is still the thing to fix before
+this goes wider, and it is Erasmus's own open item too (REQ-SEC-13).
+
+The MSI was not built — WiX is not installed here and the Erasmus package needs only the portable
+zip — so the zip was assembled to `packaging/windows/package.ps1`'s exact layout rather than by
+running it: the two executables, `README.md`, both licences, the six `OFL-*.txt` files, and
+`portable.txt`, under one wrapper directory. `CRAFT_FONTS_DIR` was set from a fresh `craft-fonts`
+checkout so the bundled OFL families are embedded as in an official build, and
+`PHOTOCRAFT_BUILD_SHA`/`DATE` were set so the binary reports `0.9.1 (c820c69f1, 2026-10-14)` rather
+than a dev build.
 
 ### How the pieces sit
 
