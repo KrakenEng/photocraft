@@ -1,0 +1,193 @@
+{
+  "$comment": [
+    "PhotoCraft's Erasmus manifest. Copy this to erasmus-packages/manifests/photocraft.json when",
+    "publishing; see PUBLISHING.md there and docs/erasmus.md here for the design behind every",
+    "choice below.",
+    "",
+    "A manifest is DATA, validated against Erasmus's shared/schema/manifest.ts and nothing else.",
+    "Everything only a build can know -- install.artifacts' url, byte count and sha256, and the",
+    "icon's asset url -- is left out: the private-repository tier does not read a manifest's claim",
+    "about where to download itself from. Erasmus fills those in from the release and from the line",
+    "in packages.txt that a person wrote and git recorded.",
+    "",
+    "WHY THE PORT IS 'allocated' AND NOT 'fixed'. The publishing guide's checklist says to declare",
+    "'fixed' matching your program's own default port, and records a real bug where 'allocated'",
+    "defeated a sibling program's deliberate discoverability. That reasoning does not transfer:",
+    "PhotoCraft has no default control port at all. Its --control <port> is required and",
+    "user-chosen by design, so there is nothing for 'fixed' to match and nothing for 'allocated'",
+    "to defeat -- and 'allocated' additionally lets two PhotoCraft windows run at once, which an",
+    "image editor is asked for more often than a CAD kernel is.",
+    "",
+    "WHY THE TOKEN IS 'generated' AND NOT 'handshake'. 'handshake' exists for a program that must",
+    "persist its own credential so a URL registered with some external MCP client keeps working",
+    "across restarts. Nothing holds a saved PhotoCraft bridge URL, so a credential minted fresh per",
+    "launch is both sufficient and the shorter-lived of the two.",
+    "",
+    "WHY THERE IS A HANDSHAKE FILE ANYWAY. It carries three things only the running program knows,",
+    "none of which is the port or the token: its window handle (so window.match can be 'handshake',",
+    "the one exact strategy -- a title match on 'PhotoCraft' would happily attach to a copy the user",
+    "already had open, which for an image editor is the normal case and not a corner one), the",
+    "directory its logs are in (read on exit, when the runtime directory is about to be swept), and",
+    "its own longest real tool budget.",
+    "",
+    "WHY callTimeoutMs IS FIVE MINUTES. docs/scorecard.md measures what PhotoCraft's slow",
+    "operations actually cost on a large document: ~3.4s to save a 36 MP layered PSD, ~3.1s for a",
+    "Gaussian blur, ~9.9s for a full refresh of a 14000x14000 document. The 30s default would be",
+    "fine for those and wrong for Content-Aware Scale, which is currently measured at 954s against",
+    "a 3s budget (photocraft #211). The failure a short budget produces is the worst shape",
+    "available: the host gives up, the model is told the call failed, and PhotoCraft carries on and",
+    "commits the edit anyway. The number here is a FLOOR -- the program publishes its real budget",
+    "through handshake.callTimeoutField and the host raises its own wait to match.",
+    "",
+    "WHAT `opens` CLAIMS, AND WHAT IT DELIBERATELY DOES NOT. The layered and native formats",
+    "(psd, psb, pcraft), the two PhotoCraft handles specially (tif, exr) and camera raw are all",
+    "cases where PhotoCraft is plainly the right thing to hand a file to. The flat web formats --",
+    "png, jpg, gif, webp -- are not here on purpose: PhotoCraft opens them, but so does everything",
+    "else on the machine, and claiming them makes PhotoCraft the default opener for every image",
+    "mentioned in a transcript. That is a product decision rather than a technical one, and adding",
+    "them is a one-line change whenever it is made. `tool` is always the literal `open_file`: the",
+    "point of fixing the name is that a host which has matched an extension never has to look up",
+    "what this program called its own opener.",
+    "",
+    "There is no `skillPath` -- PhotoCraft serves only the structured /skills document, and two",
+    "documents saying the same thing is two documents to keep in sync.",
+    "",
+    "install.stripPrefix is omitted on purpose, which is not the same as forgotten. The portable",
+    "zip has exactly one top-level directory and it IS a packaging wrapper",
+    "(photocraft-<version>-windows-<arch>-portable/), so the install pipeline's own heuristic --",
+    "promote a single top-level directory -- is correct here. Naming it explicitly would mean",
+    "transcribing a version number into this file on every release for no gain.",
+    "",
+    "WHY install.keep NAMES PhotoCraftData. portable.txt beside photocraft.exe is the whole reason",
+    "verifyFiles lists it: it switches PhotoCraft into portable mode, so preferences, brush presets",
+    "and crash-recovery autosaves live in PhotoCraftData INSIDE the install root instead of",
+    "%APPDATA%. That is the right shape for a hosted program -- an uninstall takes the install root",
+    "and leaves nothing behind -- but an update finishes with one atomic rename INTO that same",
+    "install root, so without `keep` every update would quietly discard the user's settings and",
+    "presets. `keep` hard-links the tree across from the previous install (carryOver.ts walks a",
+    "directory and links each file), which is exactly what this field exists for. First install has",
+    "no previous version and reports `no-source`, which is harmless.",
+    "",
+    "uninstall.warnPaths names %APPDATA%\\Photocraft and nothing else because that is genuinely the",
+    "only place PhotoCraft can write outside its install root: app_dirs::resolve falls back to it",
+    "when portable mode is on but PhotoCraftData is not writable (a read-only drive). There is no",
+    "second cache or scratch location to warn about."
+  ],
+
+  "manifestVersion": 1,
+  "minHostVersion": "0.3.0",
+
+  "id": "photocraft",
+  "version": "0.8.2",
+  "label": "PhotoCraft",
+  "vendor": "Learning Machines LLC",
+  "summary": "Layered image editing with real PSD files, in a native app written entirely in Rust.",
+  "description": "PhotoCraft is an image editor with Photoshop-comparable behaviour and file fidelity, written entirely in Rust. Layers, masks, adjustment layers, layer styles, type, vectors and brushes, with a GPU compositor on wgpu and multithreaded filters.\n\nIt opens, edits and saves real layered Photoshop documents, reads camera raw from most major makers, and keeps anything it does not model yet verbatim rather than dropping it. Its own .pcraft format is lossless and incremental.\n\nEvery user-visible action is a command with an id, which is what makes the whole editor drivable: the menus, the CLI, the JSON control channel and this bridge all dispatch the same commands. That is also why the tool list here is short and its reach is not -- command_list finds any of them and command_run performs it.",
+  "homepage": "https://getartcraft.com/apps/photocraft",
+  "license": "MIT OR Apache-2.0",
+  "categories": ["graphics", "image-editing", "design"],
+
+  "platforms": ["win32-x64"],
+
+  "install": {
+    "kind": "archive",
+    "artifacts": {},
+    "verifyFiles": ["photocraft.exe", "photocraft-cli.exe", "portable.txt"],
+    "executables": ["photocraft.exe", "photocraft-cli.exe"],
+    "keep": [{ "path": "PhotoCraftData" }]
+  },
+
+  "exec": {
+    "win32-x64": {
+      "runtime": "native",
+      "path": "photocraft.exe",
+      "args": [],
+      "env": {},
+      "pathPrepend": []
+    }
+  },
+
+  "bridge": {
+    "kind": "mcp-http",
+    "port": { "mode": "allocated", "envVar": "PHOTOCRAFT_ERASMUS_PORT" },
+    "token": { "mode": "generated", "envVar": "PHOTOCRAFT_ERASMUS_TOKEN", "bytes": 32 },
+    "authHeader": "X-PhotoCraft-Token",
+    "allowTokenInQuery": false,
+    "mcpPath": "/mcp",
+    "mcpProtocol": "2025-06-18",
+    "toolsPath": "/tools",
+    "handshake": {
+      "envVar": "PHOTOCRAFT_ERASMUS_HANDSHAKE",
+      "filename": "photocraft_bridge.json",
+      "waitMs": 60000,
+      "logDirField": "log_dir",
+      "callTimeoutField": "max_tool_timeout_ms"
+    },
+    "health": {
+      "path": "/health",
+      "auth": false,
+      "expectStatus": 200,
+      "intervalMs": 1500,
+      "timeoutMs": 3000,
+      "startupGraceMs": 60000,
+      "readyAfter": 1,
+      "failAfter": 4
+    },
+    "callTimeoutMs": 300000,
+    "allowRendererCalls": false
+  },
+
+  "opens": {
+    "kind": "bridge",
+    "extensions": [
+      "psd",
+      "psb",
+      "pcraft",
+      "tif",
+      "tiff",
+      "exr",
+      "dng",
+      "nef",
+      "cr2",
+      "cr3",
+      "arw",
+      "raf",
+      "orf",
+      "rw2"
+    ],
+    "tool": "open_file"
+  },
+
+  "skills": { "kind": "bridge", "path": "/skills", "autoload": true },
+
+  "actions": { "kind": "bridge", "path": "/actions", "preferOverTools": false },
+
+  "ai": {
+    "kind": "erasmus",
+    "uses": ["local-models", "coding-agents"],
+    "direction": "serves",
+    "workload": "text"
+  },
+
+  "window": {
+    "mode": "attached",
+    "attachHint": "own",
+    "match": {
+      "strategy": "handshake",
+      "titleRegex": "^PhotoCraft",
+      "minWidth": 400,
+      "minHeight": 300,
+      "timeoutMs": 60000,
+      "pollMs": 250,
+      "skipFirst": 0
+    },
+    "handshakeField": "hwnd",
+    "hideWhenInactive": true,
+    "survivesRestart": false
+  },
+
+  "uninstall": {
+    "removeUserData": false,
+    "warnPaths": ["%APPDATA%\\Photocraft"]
+  }
+}

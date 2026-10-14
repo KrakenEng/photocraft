@@ -4,7 +4,7 @@
 use std::io::{BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::Sender;
 use std::time::Instant;
 
 use photocraft_automation::budgets::write_reply;
@@ -15,13 +15,18 @@ use photocraft_ui_egui::ControlRequest;
 use photocraft_ui_egui::control::REPLY_DEADLINE;
 use serde_json::{Value, json};
 
-pub fn start(port: u16, token: String, ctx: egui::Context) -> Receiver<ControlRequest> {
-    let (tx, rx) = channel::<ControlRequest>();
+/// Start the server onto a channel the caller owns, so more than one front end can share the
+/// app's single control queue.
+///
+/// The Erasmus bridge (`crate::erasmus`) is the other one. Both hand [`ControlRequest`]s to the
+/// same UI-thread dispatcher rather than each opening its own way in, because two ways in is two
+/// sets of semantics to keep identical.
+pub fn start_on(tx: Sender<ControlRequest>, port: u16, token: String, ctx: egui::Context) {
     let listener = match TcpListener::bind(("127.0.0.1", port)) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("photocraft: control server failed to bind 127.0.0.1:{port}: {e}");
-            return rx;
+            return;
         }
     };
     eprintln!("photocraft: control server listening on 127.0.0.1:{port}");
@@ -43,7 +48,6 @@ pub fn start(port: u16, token: String, ctx: egui::Context) -> Receiver<ControlRe
             });
         }
     });
-    rx
 }
 
 fn serve(stream: TcpStream, token: &str, tx: Sender<ControlRequest>, ctx: egui::Context) {
@@ -118,6 +122,8 @@ fn serve(stream: TcpStream, token: &str, tx: Sender<ControlRequest>, ctx: egui::
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc::channel;
+
     use super::*;
     use std::io::BufRead;
     use std::time::Duration;

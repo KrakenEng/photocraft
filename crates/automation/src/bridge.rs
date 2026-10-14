@@ -33,6 +33,42 @@ pub const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_secs(55);
 const NO_REPLY_CAUSES: &str =
     "the command may still be running, or the app was not drawing frames (display asleep, window fully occluded, or a long operation blocked the frame loop)";
 
+/// A boxed future, so [`ControlTransport`] can be used behind `dyn`.
+pub type Call<'a> = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, AutomationError>> + Send + 'a>>;
+
+/// A way to reach a running PhotoCraft's control plane.
+///
+/// [`BridgeClient`] is the implementation that goes over a TCP socket, and it was the only one for
+/// as long as the only caller was a separate process. The Erasmus bridge (`crate::erasmus`) runs
+/// *inside* the desktop app, where the control plane is an in-process channel to the UI thread and
+/// a socket would be a hop out of the process and back for no reason — and a second listener on
+/// loopback that nothing needs.
+///
+/// Every one of [`crate::PhotocraftMcp`]'s tools reaches the app through exactly these two
+/// methods, which is what makes one trait enough to serve both. The alternative was a second
+/// mapping from tool names to control methods inside the app, and two mappings of the same 25
+/// tools is how they come to disagree.
+pub trait ControlTransport: Send + Sync {
+    /// Perform a control method. A transport failure may or may not have applied it.
+    fn call<'a>(&'a self, method: &'a str, params: Value) -> Call<'a>;
+
+    /// [`Self::call`] for a method the caller knows only reads state, so a transport failure
+    /// applied nothing and one fresh attempt is safe.
+    fn call_read<'a>(&'a self, method: &'a str, params: Value) -> Call<'a>;
+}
+
+impl ControlTransport for BridgeClient {
+    fn call<'a>(&'a self, method: &'a str, params: Value) -> Call<'a> {
+        // Spelled out rather than `self.call(..)`: the inherent method of the same name is what a
+        // direct caller gets, and delegating to it by path makes clear this is not a recursion.
+        Box::pin(BridgeClient::call(self, method, params))
+    }
+
+    fn call_read<'a>(&'a self, method: &'a str, params: Value) -> Call<'a> {
+        Box::pin(BridgeClient::call_read(self, method, params))
+    }
+}
+
 pub struct BridgeClient {
     addr: String,
     token: String,

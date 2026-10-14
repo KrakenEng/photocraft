@@ -454,6 +454,11 @@ fn dispatch(app: &mut PhotocraftApp, ctx: &egui::Context, req: &ControlRequest) 
         }
         "ui.menu.list" => ok(serde_json::to_value(crate::menus::menu_items(app)).unwrap_or_default()),
         "ui.inspect" => ok(inspect(app, ctx)),
+        // Just the open documents: the `session` field of `ui.inspect` without the rest of it.
+        // `ui.inspect` serializes the whole UI *and* the active document's layer tree, which is
+        // the wrong thing to ask for on a timer — the Erasmus bridge's health route polls this
+        // every 1.5 seconds to report which documents have never been saved (`docs/erasmus.md`).
+        "session.list" => ok(photocraft_engine::inspect::session(&app.session)),
         "ui.set" => {
             if let Some(field) = p.as_object().and_then(|o| o.keys().find(|k| !UI_SET_FIELDS.contains(&k.as_str()))) {
                 return err(format!("unknown field `{field}` (fields: {})", UI_SET_FIELDS.join(", ")));

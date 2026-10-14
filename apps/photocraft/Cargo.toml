@@ -33,6 +33,10 @@ eframe = { workspace = true, features = ["wgpu", "accesskit", "wayland", "x11", 
 egui = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
+# The Erasmus bridge's own runtime (`src/erasmus.rs`), on its own threads: the MCP dispatch is
+# async and the UI thread must never become a tokio thread. Started only when the harness launched
+# us, so an ordinary run never creates it.
+tokio = { version = "1", features = ["rt-multi-thread", "io-util", "sync", "time"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rfd = { workspace = true }

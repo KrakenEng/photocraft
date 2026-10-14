@@ -111,6 +111,22 @@ async fn lists_expected_tools() {
     client.cancel().await.unwrap();
 }
 
+/// The Erasmus actions document names a tool per action, and the host checks that name against
+/// `tools/list` at call time — after a person has already clicked the action. `KNOWN_TOOLS` is
+/// what lets `erasmus::actions::validate` catch that here instead, so it must stay exactly the
+/// live tool list rather than a copy that was accurate once.
+#[tokio::test(flavor = "multi_thread")]
+async fn erasmus_known_tools_match_the_server() {
+    let client = connect(PhotocraftMcp::headless()).await;
+    let tools = client.list_all_tools().await.unwrap();
+    let mut live: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
+    live.sort();
+    let mut declared: Vec<String> = photocraft_automation::erasmus::actions::KNOWN_TOOLS.iter().map(|t| (*t).to_owned()).collect();
+    declared.sort();
+    assert_eq!(declared, live, "erasmus::actions::KNOWN_TOOLS has drifted from the server's tools/list");
+    client.cancel().await.unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn headless_edit_render_save_roundtrip() {
     let dir = tmp("edit");

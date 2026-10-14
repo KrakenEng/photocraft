@@ -30,6 +30,7 @@ mod caption_style;
 mod control_server;
 mod crash_guard;
 mod cursor;
+mod erasmus;
 mod file_dialog_probe;
 mod gpu_startup;
 #[cfg(target_os = "linux")]
@@ -467,9 +468,28 @@ fn main() -> eframe::Result {
                     log::warn!("couldn't remember GPU backend {}: {e}", b.name());
                 }
             });
-            if let Some((port, token, _)) = control {
-                let rx = control_server::start(port, token, cc.egui_ctx.clone());
-                app = app.with_control(rx);
+            // The control channel, shared by every front end that drives the app from outside the
+            // UI thread: the JSON-lines control server (`--control`) and the Erasmus bridge
+            // (started by the harness through `PHOTOCRAFT_ERASMUS_PORT`). One queue and one
+            // dispatcher, because two ways in is two sets of semantics to keep identical.
+            let erasmus_config = erasmus::Config::from_env();
+            if control.is_some() || erasmus_config.is_some() {
+                let (control_tx, control_rx) = std::sync::mpsc::channel();
+                if let Some((port, token, _)) = control {
+                    control_server::start_on(control_tx.clone(), port, token, cc.egui_ctx.clone());
+                }
+                if let Some(config) = erasmus_config {
+                    let logs = services::config_dir().map(|dir| dir.join("logs"));
+                    if let Some(handshake) = erasmus::start(config, control_tx, cc.egui_ctx.clone(), logs) {
+                        // The window already exists by the time eframe hands us a creation
+                        // context, so the handle can go into the handshake now rather than from
+                        // the first frame. It is what lets the manifest ask for
+                        // `window.match.strategy: "handshake"` — the one way for the harness to
+                        // find our window that cannot pick up a second copy the user opened.
+                        handshake.publish_window_handle(erasmus::window_handle(cc).unwrap_or(0));
+                    }
+                }
+                app = app.with_control(control_rx);
             }
             #[cfg(target_os = "macos")]
             {

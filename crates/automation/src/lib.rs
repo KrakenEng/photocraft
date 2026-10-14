@@ -10,6 +10,9 @@
 //! * [`Headless`]: the synchronous session + file I/O core, shared with the CLI.
 //! * [`rpc`]: a headless JSON-lines server (stdio or loopback TCP) with the
 //!   control protocol's envelope, used by `photocraft-cli serve`.
+//! * [`erasmus`]: the Erasmus harness's bridge — the same tools over loopback
+//!   HTTP with a header credential, plus the skills and actions documents that
+//!   tell its assistant how to drive PhotoCraft (`docs/erasmus.md`).
 //! * [`files`]: open/save any supported format, `.pcraft` natively.
 //!
 //! L6, no UI-toolkit dependencies.
@@ -18,6 +21,7 @@
 
 pub mod bridge;
 pub mod budgets;
+pub mod erasmus;
 pub mod files;
 pub mod headless;
 pub mod rpc;
@@ -25,7 +29,7 @@ pub mod security;
 pub mod server;
 pub mod workspace;
 
-pub use bridge::BridgeClient;
+pub use bridge::{BridgeClient, ControlTransport};
 pub use headless::Headless;
 pub use server::{Backend, PhotocraftMcp};
 pub use workspace::AuthorizedWorkspace;

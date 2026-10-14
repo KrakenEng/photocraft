@@ -13,7 +13,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::bridge::BridgeClient;
+use crate::bridge::{BridgeClient, ControlTransport};
 use crate::budgets::{BatchReplyBudget, MAX_PREVIEW_SIDE, check_png, json_bytes};
 use crate::headless::Headless;
 use crate::security::MAX_BATCH_STEPS;
@@ -24,7 +24,7 @@ pub enum Backend {
     /// In-process engine session.
     Headless(Arc<Mutex<Headless>>),
     /// A running desktop app reached over the control protocol.
-    Bridge(Arc<BridgeClient>),
+    Bridge(Arc<dyn ControlTransport>),
 }
 
 #[derive(Clone)]
@@ -465,6 +465,15 @@ impl PhotocraftMcp {
         Ok(Self::with_backend(Backend::Bridge(Arc::new(BridgeClient::new(addr, token)?))))
     }
 
+    /// A server over any control transport, for a caller that already has one.
+    ///
+    /// The Erasmus bridge runs inside the desktop app and reaches the UI thread over a channel
+    /// rather than a socket, so it supplies its own [`ControlTransport`] instead of a
+    /// [`BridgeClient`] pointed back at the same process.
+    pub fn with_transport(transport: Arc<dyn ControlTransport>) -> Self {
+        Self::with_backend(Backend::Bridge(transport))
+    }
+
     pub fn with_backend(backend: Backend) -> Self {
         let mut tool_router = Self::tool_router();
         for route in tool_router.map.values_mut() {
@@ -503,14 +512,14 @@ impl PhotocraftMcp {
         )
     }
 
-    fn bridge_client(&self) -> Option<&BridgeClient> {
+    fn bridge_client(&self) -> Option<&dyn ControlTransport> {
         match &*self.backend {
-            Backend::Bridge(b) => Some(b),
+            Backend::Bridge(b) => Some(b.as_ref()),
             Backend::Headless(_) => None,
         }
     }
 
-    async fn screenshot(&self, b: &BridgeClient, max_side: Option<u32>) -> Result<CallToolResult, McpError> {
+    async fn screenshot(&self, b: &dyn ControlTransport, max_side: Option<u32>) -> Result<CallToolResult, McpError> {
         if max_side.is_some_and(|side| side > MAX_PREVIEW_SIDE) {
             return Ok(fail(format!("automation preview side exceeds {MAX_PREVIEW_SIDE} pixels")));
         }
@@ -595,6 +604,19 @@ impl PhotocraftMcp {
             return Ok(no_backend());
         };
         to_result(b.call("app.open", json!({"path": p.path})).await)
+    }
+
+    /// The fixed-name opener a host calls after matching a file's extension against our manifest.
+    ///
+    /// The name is a convention, not our choice: a host that has just matched `.psd` to PhotoCraft
+    /// must never also have to look up what this program called its own File ▸ Open. Declared in
+    /// `packaging/erasmus/photocraft.json`'s `opens` block, and deliberately a thin alias of
+    /// `doc_open` rather than a second implementation — see `docs/erasmus.md`.
+    #[tool(
+        description = "Open the file at an absolute path as a new document, the same as File > Open. The fixed-name opener for a host that matched a file to PhotoCraft."
+    )]
+    async fn open_file(&self, Parameters(p): Parameters<OpenParams>) -> Result<CallToolResult, McpError> {
+        self.doc_open(Parameters(p)).await
     }
 
     #[tool(
