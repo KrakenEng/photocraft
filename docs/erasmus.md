@@ -1,7 +1,8 @@
 # Hosting PhotoCraft inside Erasmus
 
-> **Status:** published — `photocraft 0.9.1` is listed in the private marketplace ·
-> **Last updated:** 2026-10-14 · **Target:** Erasmus host 0.3.47
+> **Status:** the bridge is implemented and verified against a real launch. It was published to the
+> private marketplace as `photocraft 0.9.1` and has since been **delisted** at the owner's request ·
+> **Last updated:** 2026-10-16 · **Target:** Erasmus host 0.3.47
 
 Erasmus is an application harness: it installs a program, launches it itself, allocates the port
 its control bridge listens on, hands it a handshake file, and puts the program's real OS window
@@ -374,7 +375,16 @@ is built — step 10) and `PHOTOCRAFT_HOSTED` via `exec.env` (step 8a).
 | 8 | The transport onto the UI thread, the accept loop, and both front ends sharing one control channel | `apps/photocraft/src/{erasmus,control_server,main}.rs` | done |
 | 9 | The manifest, validated by running the host's own zod schema over it | `packaging/erasmus/photocraft.json` | done |
 | 8a | A `PHOTOCRAFT_HOSTED` flag and the `exec.env` that sets it, once something reads it — a modal "save changes?" on close is the first candidate | `apps/photocraft/src/main.rs`, the manifest | open |
-| 10 | Publish: the portable zip, the release asset, the manifest copy, the `packages.txt` line and `approxInstalledBytes` | `../erasmus-packages` | done |
+| 10 | Publish: the portable zip, the release asset, the manifest copy, the `packages.txt` line and `approxInstalledBytes` | `../erasmus-packages` | done, then delisted |
+
+### Delisted (2026-10-16)
+
+The `packages.txt` line and `manifests/photocraft.json` were removed, so nothing in the Market
+offers PhotoCraft. Per `PUBLISHING.md` that is the whole delisting operation: the
+`photocraft-v0.9.1` release and its asset are deliberately left in place, because whether those
+bytes stay retrievable is a separate decision, and anyone who had already installed keeps their
+copy either way — delisting is not an uninstall. Everything below describes what that publish
+was, and stands as the record of how to do it again.
 
 ### What was published, and on what base
 
